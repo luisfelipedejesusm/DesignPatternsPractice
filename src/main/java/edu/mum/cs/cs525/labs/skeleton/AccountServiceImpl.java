@@ -1,9 +1,6 @@
 package edu.mum.cs.cs525.labs.skeleton;
 
-import edu.mum.cs.cs525.labs.skeleton.command.Command;
-import edu.mum.cs.cs525.labs.skeleton.command.DepositCommand;
-import edu.mum.cs.cs525.labs.skeleton.command.TransferFundsCommand;
-import edu.mum.cs.cs525.labs.skeleton.command.WithdrawCommand;
+import edu.mum.cs.cs525.labs.skeleton.command.*;
 import edu.mum.cs.cs525.labs.skeleton.factory.AccountFactory;
 import edu.mum.cs.cs525.labs.skeleton.observer.*;
 import edu.mum.cs.cs525.labs.skeleton.strategy.InterestStrategy;
@@ -19,9 +16,10 @@ import static edu.mum.cs.cs525.labs.skeleton.observer.EventType.*;
 
 public class AccountServiceImpl implements AccountService, Subject {
 
-	private AccountDAO accountDAO;
-	private Stack<Command> commands = new Stack<>();
+	private final AccountDAO accountDAO;
 	private final AccountFactory factory;
+	private final List<Observer> observers = new ArrayList<>();
+	private final CommandRunner commandRunner = new CommandRunnerImpl();
 	
 	public AccountServiceImpl(AccountFactory factory){
 		this.factory = factory;
@@ -31,8 +29,6 @@ public class AccountServiceImpl implements AccountService, Subject {
 		subscribe(new SmsSender());
 		subscribe(new Interest());
 	}
-
-	private List<Observer> observers = new ArrayList<>();
 
 	public Account createAccount(String accountNumber, String customerName) {
 		return createAccount(accountNumber, customerName, SavingsStrategy.INSTANCE);
@@ -50,9 +46,8 @@ public class AccountServiceImpl implements AccountService, Subject {
 
 	public void deposit(String accountNumber, double amount) {
 		Account account = accountDAO.loadAccount(accountNumber);
-//		account.deposit(amount);
 
-		runCommand(new DepositCommand(account, amount));
+		commandRunner.runCommand(new DepositCommand(account, amount));
 
 		accountDAO.updateAccount(account);
 		notifyChanges(ACCOUNT_CHANGE);
@@ -69,8 +64,7 @@ public class AccountServiceImpl implements AccountService, Subject {
 	public void withdraw(String accountNumber, double amount) {
 		Account account = accountDAO.loadAccount(accountNumber);
 
-		// account.withdraw(amount);
-		runCommand(new WithdrawCommand(account, amount));
+		commandRunner.runCommand(new WithdrawCommand(account, amount));
 
 		accountDAO.updateAccount(account);
 		notifyChanges(ACCOUNT_CHANGE);
@@ -80,9 +74,7 @@ public class AccountServiceImpl implements AccountService, Subject {
 		Account fromAccount = accountDAO.loadAccount(fromAccountNumber);
 		Account toAccount = accountDAO.loadAccount(toAccountNumber);
 
-
-		// fromAccount.transferFunds(toAccount, amount, description);
-		runCommand(new TransferFundsCommand(fromAccount, toAccount, amount, description));
+		commandRunner.runCommand(new TransferFundsCommand(fromAccount, toAccount, amount, description));
 
 		accountDAO.updateAccount(fromAccount);
 		accountDAO.updateAccount(toAccount);
@@ -90,13 +82,7 @@ public class AccountServiceImpl implements AccountService, Subject {
 	}
 
 	public void undoLastCommand(){
-		if(!commands.empty())
-			commands.pop().undo();
-	}
-
-	private void runCommand(Command command){
-		command.execute();
-		commands.add(command);
+		commandRunner.undoLastCommand();
 	}
 
 	@Override
